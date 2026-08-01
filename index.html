@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ChatGPT</title>
+<title>Simple Chat</title>
 <style>
 body{
     font-family:"Times New Roman",serif;
@@ -29,6 +29,10 @@ button{
     font-size:16px;
     cursor:pointer;
 }
+button:disabled{
+    cursor:wait;
+    opacity:0.6;
+}
 #answer{
     margin-top:30px;
     border-top:1px solid black;
@@ -38,33 +42,53 @@ button{
 </style>
 </head>
 <body>
-<h2>Simple ChatGPT Wrapper</h2>
+<h2>Simple Chat</h2>
 <textarea
 id="prompt"
 placeholder="Type your question here..."
 ></textarea>
 <br>
-<button onclick="send()">Send</button>
-<div id="answer"></div>
+<button id="send-button" type="button" onclick="send()">Send</button>
+<div id="answer" role="status" aria-live="polite"></div>
 <script>
 async function send(){
     const answer=document.getElementById("answer");
+    const button=document.getElementById("send-button");
+    const prompt=document.getElementById("prompt").value.trim();
+    if(!prompt){
+        answer.textContent="Please enter a question.";
+        return;
+    }
     answer.textContent="Thinking...";
+    button.disabled=true;
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),60000);
     try{
-        const response=await fetch("chat.php",{
+        const response=await fetch("/api/chat",{
             method:"POST",
             headers:{
-                "Content-Type":"application/x-www-form-urlencoded"
+                "Content-Type":"application/json"
             },
-            body:"prompt="+encodeURIComponent(
-                document.getElementById("prompt").value
-            )
+            body:JSON.stringify({prompt}),
+            signal:controller.signal
         });
-        const text=await response.text();
-        answer.textContent=text;
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok){
+            throw new Error(data.error||"The request failed. Please try again.");
+        }
+        if(!data.answer){
+            throw new Error("The assistant returned an empty answer. Please try again.");
+        }
+        answer.textContent=data.answer;
     }
     catch(error){
-        answer.textContent="Error:\n\n"+error;
+        answer.textContent=error.name==="AbortError"
+            ? "The assistant took too long to respond. Please try again."
+            : error.message;
+    }
+    finally{
+        clearTimeout(timeout);
+        button.disabled=false;
     }
 }
 document.getElementById("prompt").addEventListener("keydown",function(e){
@@ -76,4 +100,3 @@ document.getElementById("prompt").addEventListener("keydown",function(e){
 </script>
 </body>
 </html>
- 
