@@ -1,37 +1,69 @@
 <?php
 
-$key="";
+$key = "YOUR_OPENAI_API_KEY";
 
-$data=json_encode([
-"model"=>"gpt-5.6-luna",
-"input"=>$_POST["prompt"]
+$data = [
+    "model" => "gpt-5.6-luna",
+    "input" => $_POST["prompt"]
+];
+
+$ch = curl_init("https://api.openai.com/v1/responses");
+
+curl_setopt_array($ch,[
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST => true,
+    CURLOPT_HTTPHEADER => [
+        "Authorization: Bearer ".$key,
+        "Content-Type: application/json"
+    ],
+    CURLOPT_POSTFIELDS => json_encode($data)
 ]);
 
-$ch=curl_init("https://api.openai.com/v1/responses");
+$result = curl_exec($ch);
 
-curl_setopt($ch,CURLOPT_RETURNTRANSFER,true);
-curl_setopt($ch,CURLOPT_POST,true);
-curl_setopt($ch,CURLOPT_HTTPHEADER,[
-"Authorization: Bearer ".$key,
-"Content-Type: application/json"
-]);
-curl_setopt($ch,CURLOPT_POSTFIELDS,$data);
+if(curl_errno($ch)){
+    die("cURL Error: ".curl_error($ch));
+}
 
-$result=curl_exec($ch);
+$http = curl_getinfo($ch,CURLINFO_HTTP_CODE);
 
 curl_close($ch);
 
-$json=json_decode($result,true);
-
-if(isset($json["output_text"]))
-{
-echo $json["output_text"];
+if($http != 200){
+    die($result);
 }
-else
-{
-echo "<pre>";
-print_r($json);
-echo "</pre>";
+
+$json = json_decode($result,true);
+
+$text = "";
+
+if(isset($json["output"])){
+
+    foreach($json["output"] as $item){
+
+        if(isset($item["content"])){
+
+            foreach($item["content"] as $c){
+
+                if(isset($c["text"])){
+                    $text .= $c["text"];
+                }
+
+            }
+
+        }
+
+    }
+
+}
+
+if($text!=""){
+    echo $text;
+}
+else{
+    echo "<pre>";
+    print_r($json);
+    echo "</pre>";
 }
 
 ?>
