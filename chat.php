@@ -1,9 +1,9 @@
 <?php
  
 // TESTING ONLY — don't commit this file or deploy it publicly with a real key inline.
-$key = "sk-REPLACE_WITH_YOUR_KEY";
+$key = "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";
  
-if (!$key || $key === "sk-REPLACE_WITH_YOUR_KEY") {
+if (!$key || $key === "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") {
     die("Set your API key in the \$key variable at the top of chat.php.");
 }
  
