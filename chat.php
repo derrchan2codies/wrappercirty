@@ -1,22 +1,8 @@
 <?php
  
 // TESTING ONLY — don't commit this file or deploy it publicly with a real key inline.
-$key = "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";
+$key = "
  
-if (!$key || $key === "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") {
-    die("Set your API key in the \$key variable at the top of chat.php.");
-}
- 
-if (!isset($_POST["prompt"]) || trim($_POST["prompt"]) === "") {
-    die("Missing 'prompt' POST parameter.");
-}
- 
-$data = [
-    "model" => "gpt-5.6-luna", // double check this model name — "gpt-5.6-luna" isn't a real OpenAI model id
-    "input" => $_POST["prompt"]
-];
- 
-$ch = curl_init("https://api.openai.com/v1/responses");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
