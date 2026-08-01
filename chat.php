@@ -1,6 +1,6 @@
 <?php
 
-$key="";
+$key="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";
 
 $data=json_encode([
 "model"=>"gpt-5.6-luna",
