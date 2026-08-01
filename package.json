@@ -1,0 +1,10 @@
+{
+  "name": "wrappercirty",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "npm run check"
+  }
+}
