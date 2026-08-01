@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>ChatGPT</title>
+
+<style>
+
+body{
+font-family:"Times New Roman",serif;
+margin:40px;
+background:white;
+color:black;
+}
+
+textarea{
+width:100%;
+height:120px;
+font-family:inherit;
+font-size:16px;
+}
+
+button{
+padding:8px 20px;
+margin-top:10px;
+}
+
+#answer{
+margin-top:25px;
+white-space:pre-wrap;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h2>ChatGPT</h2>
+
+<textarea id="prompt"></textarea>
+
+<br>
+
+<button onclick="send()">Send</button>
+
+<div id="answer"></div>
+
+<script>
+
+async function send(){
+
+document.getElementById("answer").innerHTML="Thinking...";
+
+const r=await fetch("chat.php",{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/x-www-form-urlencoded"
+},
+
+body:"prompt="+encodeURIComponent(document.getElementById("prompt").value)
+
+});
+
+document.getElementById("answer").innerHTML=await r.text();
+
+}
+
+</script>
+
+</body>
+
+</html>
