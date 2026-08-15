@@ -5,207 +5,107 @@ const JSON_HEADERS = {
   "Cache-Control": "no-store",
 };
 
-const DEFAULT_MODEL = "gpt-5.6-luna";
-
-function jsonResponse(res, body, status = 200, extraHeaders = {}) {
-  res.writeHead(status, {
-    ...JSON_HEADERS,
-    ...extraHeaders,
+function json(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: JSON_HEADERS,
   });
-
-  res.end(JSON.stringify(body));
 }
 
-function cleanBaseUrl(baseUrl) {
-  return baseUrl.replace(/\/+$/, "");
-}
-
-function createResponsesUrl(baseUrl) {
-  const cleanUrl = cleanBaseUrl(baseUrl);
-
-  return cleanUrl.endsWith("/v1")
-    ? `${cleanUrl}/responses`
-    : `${cleanUrl}/v1/responses`;
-}
-
-function getOpenAIConfig() {
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    return undefined;
+function getAnswer(data) {
+  if (typeof data?.output_text === "string") {
+    return data.output_text.trim();
   }
 
-  return {
-    apiKey,
-    // Use a different OpenAI-compatible provider or gateway by setting this.
-    baseUrl: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
-    model: process.env.OPENAI_MODEL || DEFAULT_MODEL,
-  };
-}
-
-function parseRequestBody(req) {
-  let body = req.body;
-
-  if (Buffer.isBuffer(body)) {
-    body = body.toString("utf8");
-  }
-
-  if (typeof body === "string") {
-    try {
-      body = JSON.parse(body);
-    } catch {
-      return null;
-    }
-  }
-
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    return null;
-  }
-
-  return body;
-}
-
-function extractText(result) {
-  if (!result || typeof result !== "object") {
-    return "";
-  }
-
-  if (
-    typeof result.output_text === "string" &&
-    result.output_text.trim()
-  ) {
-    return result.output_text.trim();
-  }
-
-  const output = Array.isArray(result.output) ? result.output : [];
+  const output = Array.isArray(data?.output) ? data.output : [];
 
   return output
-    .flatMap((item) => {
-      if (
-        !item ||
-        typeof item !== "object" ||
-        !Array.isArray(item.content)
-      ) {
-        return [];
-      }
-
-      return item.content;
-    })
-    .filter(
-      (content) =>
-        content &&
-        typeof content === "object" &&
-        content.type === "output_text" &&
-        typeof content.text === "string",
-    )
-    .map((content) => content.text)
+    .flatMap((item) => Array.isArray(item?.content) ? item.content : [])
+    .filter((item) => item?.type === "output_text")
+    .map((item) => item.text)
+    .filter((text) => typeof text === "string")
     .join("\n")
     .trim();
 }
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return jsonResponse(
-      res,
-      { error: "Method not allowed." },
-      405,
-      { Allow: "POST" },
-    );
-  }
+export default {
+  async fetch(request) {
+    if (request.method !== "POST") {
+      return json({ error: "Method not allowed." }, 405);
+    }
 
-  const body = parseRequestBody(req);
+    const apiKey = process.env.OPENAI_API_KEY;
 
-  if (!body) {
-    return jsonResponse(res, { error: "Invalid request body." }, 400);
-  }
-
-  const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
-
-  if (!prompt) {
-    return jsonResponse(res, { error: "Please enter a question." }, 400);
-  }
-
-  if (prompt.length > 20_000) {
-    return jsonResponse(res, { error: "Your question is too long." }, 400);
-  }
-
-  const openaiConfig = getOpenAIConfig();
-
-  if (!openaiConfig) {
-    console.error("OPENAI_API_KEY is unavailable.");
-
-    return jsonResponse(
-      res,
-      {
-        error:
-          "The chat service is not configured yet. Please try again shortly.",
-      },
-      503,
-    );
-  }
-
-  try {
-    const response = await fetch(
-      createResponsesUrl(openaiConfig.baseUrl),
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openaiConfig.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: openaiConfig.model,
-          input: prompt,
-          max_output_tokens: 1200,
-        }),
-        signal: AbortSignal.timeout(55_000),
-      },
-    );
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-
-      console.error(
-        `OpenAI request failed with status ${response.status}.`,
-        errorBody,
-      );
-
-      return jsonResponse(
-        res,
-        { error: "The assistant could not answer right now. Please try again." },
-        response.status === 429 ? 429 : 502,
+    if (!apiKey) {
+      return json(
+        { error: "OPENAI_API_KEY is missing in Vercel environment variables." },
+        500,
       );
     }
 
-    const result = await response.json();
-    const answer = extractText(result);
+    let body;
 
-    if (!answer) {
-      console.error("OpenAI returned a response without text.");
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "Invalid request body." }, 400);
+    }
 
-      return jsonResponse(
-        res,
-        { error: "The assistant returned an empty answer. Please try again." },
+    const prompt =
+      typeof body?.prompt === "string" ? body.prompt.trim() : "";
+
+    if (!prompt) {
+      return json({ error: "Please enter a question." }, 400);
+    }
+
+    try {
+      const openaiResponse = await fetch(
+        "https://api.openai.com/v1/responses",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: process.env.OPENAI_MODEL || "gpt-5.6",
+            input: prompt,
+          }),
+        },
+      );
+
+      const data = await openaiResponse.json().catch(() => ({}));
+
+      if (!openaiResponse.ok) {
+        const message =
+          typeof data?.error?.message === "string"
+            ? data.error.message
+            : `OpenAI returned status ${openaiResponse.status}.`;
+
+        console.error("OpenAI API error:", openaiResponse.status, message);
+
+        // Shows the real setup error in your webpage while testing.
+        return json({ error: message }, openaiResponse.status);
+      }
+
+      const answer = getAnswer(data);
+
+      if (!answer) {
+        console.error("OpenAI returned no text:", data);
+        return json(
+          { error: "The assistant returned an empty response." },
+          502,
+        );
+      }
+
+      return json({ answer });
+    } catch (error) {
+      console.error("Chat function failed:", error);
+
+      return json(
+        { error: "Could not contact OpenAI. Check Vercel Function Logs." },
         502,
       );
     }
-
-    return jsonResponse(res, { answer });
-  } catch (error) {
-    console.error("Chat request failed.", error);
-
-    const timedOut =
-      error instanceof Error &&
-      (error.name === "TimeoutError" || error.name === "AbortError");
-
-    return jsonResponse(
-      res,
-      {
-        error: timedOut
-          ? "The assistant took too long to respond. Please try again."
-          : "The chat service is temporarily unavailable. Please try again.",
-      },
-      timedOut ? 504 : 502,
-    );
-  }
-}
+  },
+};
